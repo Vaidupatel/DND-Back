@@ -4,7 +4,6 @@
   "description": "This is the server to handle the nexgenwebcon",
   "main": "server.js",
   "scripts": {
-    "start": "nodemon server.jsx",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "ghelani vaidik",
@@ -17,8 +16,10 @@
     "express-useragent": "^1.0.15",
     "express-validator": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.5.2",
-    "nodemailer": "^6.9.14",
+    "mongoose": "^8.5.3",
+    "nodemailer": "^6.9.14"
+  },
+  "devDependencies": {
     "nodemon": "^3.1.4"
   }
 }
