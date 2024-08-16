@@ -8,7 +8,7 @@ const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const useragent = require("express-useragent");
 require("dotenv").config();
-const jWT_SECRET =  process.env.REACT_APP_JWT_SECRET;
+const jWT_SECRET = process.env.REACT_APP_JWT_SECRET;
 
 const generateCommonStyles = () => `
   body {
@@ -185,14 +185,20 @@ router.post(
     }
 
     try {
-      const { email } = req.body;
+      const { email, mobile } = req.body;
 
       // Check if user already exists
       let userEmail = await User.findOne({ email: email });
+      let userMobile = await User.findOne({ mobile: mobile });
       if (userEmail) {
         return res.status(400).json({
           success: false,
           error: "Sorry, user with this email already exists",
+        });
+      } else if (userMobile) {
+        return res.status(400).json({
+          success: false,
+          error: "Sorry, user with this mobile already exists",
         });
       }
 
