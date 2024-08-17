@@ -6,10 +6,7 @@ const httpPort = process.env.PORT || 5000;
 const cookieParser = require("cookie-parser");
 
 const corsOptions = {
-  origin: [
-    "https://nexgenwebcon.netlify.app",
-    "http://localhost:3000"
-  ],
+  origin: true, // Allow all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
