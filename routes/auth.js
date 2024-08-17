@@ -3,11 +3,12 @@ const router = Router();
 const User = require("../models/User.js");
 const { body, validationResult } = require("express-validator");
 const { genSalt, hash, compare } = require("bcrypt");
-const { sign } = require("jsonwebtoken");
+const { sign, verify } = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const useragent = require("express-useragent");
 require("dotenv").config();
+
 const jWT_SECRET = process.env.REACT_APP_JWT_SECRET;
 
 const generateCommonStyles = () => `
@@ -183,11 +184,8 @@ router.post(
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
-
     try {
       const { email, mobile } = req.body;
-
-      // Check if user already exists
       let userEmail = await User.findOne({ email: email });
       let userMobile = await User.findOne({ mobile: mobile });
       if (userEmail) {
@@ -201,30 +199,22 @@ router.post(
           error: "Sorry, user with this mobile already exists",
         });
       }
-
-      // Generate OTP
       const otp = crypto.randomInt(100000, 999999).toString();
-
-      // Store OTP with expiration time (1 minute from now)
-      const expirationTime = Date.now() + 60000; // 60000 milliseconds = 1 minute
+      const expirationTime = Date.now() + 60000;
       otpStore.set(email, { otp, expirationTime });
-
-      // Send OTP via email
       await transporter.sendMail({
-        from: `"NexGen WebCon" ${process.env.REACT_APP_SENDER_MAIL}`,
+        from: `"NexGen WebCon" <${process.env.REACT_APP_SENDER_MAIL}>`,
         to: email,
         subject: "🔐 Your Exclusive Access Code for NexGen WebCon",
         text: `Welcome to NexGen WebCon! Your OTP for sign up is: ${otp}. This OTP is valid for 1 minute. Enter it quickly to join the future of web conferences!`,
         html: generateOtpHtml(otp),
       });
-
       res.json({
         success: true,
         message: "OTP sent successfully",
         expirationTime,
       });
     } catch (error) {
-      // console.error(error);
       res.status(500).send("Internal server error");
     }
   }
@@ -241,51 +231,43 @@ router.post(
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
-
     try {
       const { email, otp, name, mobile, password } = req.body;
-
-      // Verify OTP
       const storedOTP = otpStore.get(email);
       if (!storedOTP || storedOTP.otp !== otp) {
         return res.status(400).json({ success: false, error: "Invalid OTP" });
       }
-
-      // Check OTP expiration
       if (Date.now() > storedOTP.expirationTime) {
         otpStore.delete(email);
         return res.status(400).json({ success: false, error: "OTP expired" });
       }
-
-      // OTP is valid, create the user
       const salt = await genSalt(10);
       let secPassword = await hash(password, salt);
-
       const user = await User.create({
         name,
         email,
         mobile,
         password: secPassword,
       });
-
       const data = {
         user: {
           email: user.email,
         },
       };
-
       otpStore.delete(email);
-
       const authToken = sign(data, jWT_SECRET);
-      res.json({ success: true, authToken });
+      res.cookie("authToken", authToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      });
+      res.json({ success: true, message: "User created successfully" });
     } catch (error) {
-      // console.error(error);
       res.status(500).send("Internal server error");
     }
   }
 );
 
-// ROUTE 3: Authenticate the user using: POST "/api/auth/login". No login required
 router.post(
   "/login",
   [
@@ -323,8 +305,12 @@ router.post(
       };
       success = true;
       const authToken = sign(data, jWT_SECRET);
-
-      // Prepare device info for email
+      res.cookie("authToken", authToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      });
       const deviceInfo = {
         device: req.useragent.isMobile
           ? "Mobile"
@@ -334,18 +320,14 @@ router.post(
         browser: req.useragent.browser,
         os: req.useragent.os,
       };
-
-      // Send login notification email
       await transporter.sendMail({
-        from: `"NexGen WebCon" ${process.env.REACT_APP_SENDER_MAIL}`,
+        from: `"NexGen WebCon" <${process.env.REACT_APP_SENDER_MAIL}>`,
         to: email,
         subject: "New Login Detected on Your NexGen WebCon Account",
         html: generateLoginNotificationHtml(user.name, deviceInfo),
       });
-
       res.json({
         success,
-        authToken,
         user: {
           name: user.name,
           email: user.email,
@@ -358,7 +340,7 @@ router.post(
     }
   }
 );
-// ROUTE 3: Forgot password
+
 router.post(
   "/forgot-password",
   [body("email", "Enter valid email").isEmail()],
@@ -367,11 +349,8 @@ router.post(
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
-
     try {
       const { email } = req.body;
-
-      // Check if user exists
       const user = await User.findOne({ email });
       if (!user) {
         return res.status(400).json({
@@ -379,23 +358,16 @@ router.post(
           error: "User with this email does not exist",
         });
       }
-
-      // Generate OTP
       const otp = crypto.randomInt(100000, 999999).toString();
-
-      // Store OTP with expiration time (5 minutes from now)
-      const expirationTime = Date.now() + 300000; // 300000 milliseconds = 5 minutes
+      const expirationTime = Date.now() + 300000;
       otpStore.set(email, { otp, expirationTime, purpose: "reset_password" });
-
-      // Send OTP via email
       await transporter.sendMail({
-        from: `"NexGen WebCon" ${process.env.REACT_APP_SENDER_MAIL}`,
+        from: `"NexGen WebCon" <${process.env.REACT_APP_SENDER_MAIL}>`,
         to: email,
         subject: "🔐 Password Reset OTP for NexGen WebCon",
         text: `Your OTP for password reset is: ${otp}. This OTP is valid for 5 minutes. Enter it quickly to reset your password!`,
         html: generateOtpHtml(otp),
       });
-
       res.json({
         success: true,
         message: "Password reset OTP sent successfully",
@@ -408,7 +380,6 @@ router.post(
   }
 );
 
-// ROUTE 4 : resetting password
 router.post(
   "/reset-password",
   [
@@ -421,11 +392,8 @@ router.post(
     if (!errors.isEmpty()) {
       return res.status(400).json({ success: false, errors: errors.array() });
     }
-
     try {
       const { email, otp, newPassword } = req.body;
-
-      // Verify OTP
       const storedOTP = otpStore.get(email);
       if (
         !storedOTP ||
@@ -434,32 +402,23 @@ router.post(
       ) {
         return res.status(400).json({ success: false, error: "Invalid OTP" });
       }
-
-      // Check OTP expiration
       if (Date.now() > storedOTP.expirationTime) {
         otpStore.delete(email);
         return res.status(400).json({ success: false, error: "OTP expired" });
       }
-
-      // OTP is valid, reset the password
       const salt = await genSalt(10);
       const secPassword = await hash(newPassword, salt);
-
       const user = await User.findOneAndUpdate(
         { email },
         { password: secPassword }
       );
-
       otpStore.delete(email);
-
-      // Send password reset confirmation email
       await transporter.sendMail({
-        from: `"NexGen WebCon" ${process.env.REACT_APP_SENDER_MAIL}`,
+        from: `"NexGen WebCon" <${process.env.REACT_APP_SENDER_MAIL}>`,
         to: email,
         subject: "Your NexGen WebCon Password Has Been Reset",
         html: generatePasswordResetConfirmationHtml(user.name),
       });
-
       res.json({ success: true, message: "Password reset successfully" });
     } catch (error) {
       console.error(error);
@@ -467,5 +426,31 @@ router.post(
     }
   }
 );
+
+router.get("/check-auth", async (req, res) => {
+  const token = req.cookies.authToken;
+  if (!token) {
+    return res.json({ isLoggedIn: false });
+  }
+  try {
+    const decoded = verify(token, jWT_SECRET);
+    const user = await User.findOne({ _id: decoded.user.id });
+    if (user) {
+      res.json({
+        isLoggedIn: true,
+        user: { name: user.name, email: user.email, mobile: user.mobile },
+      });
+    } else {
+      res.json({ isLoggedIn: false });
+    }
+  } catch (error) {
+    res.json({ isLoggedIn: false });
+  }
+});
+
+router.post("/logout", (req, res) => {
+  res.clearCookie("authToken");
+  res.json({ success: true, message: "Logged out successfully" });
+});
 
 module.exports = router;

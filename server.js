@@ -3,16 +3,24 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const httpPort = process.env.PORT || 5000;
+const cookieParser = require("cookie-parser");
 
+const corsOptions = {
+  origin:
+    process.env.NODE_ENV === "production"
+      ? "https://nexgenwebcon.netlify.app"
+      : "http://localhost:3000",
+  credentials: true,
+};
 
 connectToDb().then(() => {
   console.log("Connected to MongoDB");
 });
 
 app.use(express.json());
-app.use(cors());
+app.use(cors(corsOptions));
+app.use(cookieParser());
 
-// Import routes
 const authRoutes = require("./routes/auth.js");
 
 // Routes
