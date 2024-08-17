@@ -1,3 +1,4 @@
+
 const { Router } = require("express");
 const router = Router();
 const User = require("../models/User.js");
@@ -171,6 +172,9 @@ const transporter = nodemailer.createTransport({
 // Store OTPs temporarily (in production, use a database or caching system)
 const otpStore = new Map();
 
+
+
+// ROUTE : 1 "Send-otp" for getting the otp for email
 router.post(
   "/send-otp",
   [
@@ -220,6 +224,7 @@ router.post(
   }
 );
 
+// ROUTE : 2 "verify-otp" to verify the otp enter by the user
 router.post(
   "/verify-otp",
   [
@@ -268,6 +273,9 @@ router.post(
   }
 );
 
+
+
+// ROUTE : 3 "login" login with email and password
 router.post(
   "/login",
   [
@@ -304,13 +312,22 @@ router.post(
         },
       };
       success = true;
-      const authToken = sign(data, jWT_SECRET);
+      const authToken = sign(data, jWT_SECRET, { expiresIn: "24h" });
       res.cookie("authToken", authToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
       });
+      res.json({
+        success,
+        user: {
+          name: user.name,
+          email: user.email,
+          mobile: user.mobile,
+        },
+      });
+
       const deviceInfo = {
         device: req.useragent.isMobile
           ? "Mobile"
@@ -326,14 +343,6 @@ router.post(
         subject: "New Login Detected on Your NexGen WebCon Account",
         html: generateLoginNotificationHtml(user.name, deviceInfo),
       });
-      res.json({
-        success,
-        user: {
-          name: user.name,
-          email: user.email,
-          mobile: user.mobile,
-        },
-      });
     } catch (error) {
       console.error(error.message);
       res.status(500).send("Internal server error");
@@ -341,6 +350,8 @@ router.post(
   }
 );
 
+
+// ROUTE : 4 "forgot-password" forgor password with email 
 router.post(
   "/forgot-password",
   [body("email", "Enter valid email").isEmail()],
@@ -380,6 +391,7 @@ router.post(
   }
 );
 
+// ROUTE : 5 "reset-password" reset password using otp sent to forgot password mail
 router.post(
   "/reset-password",
   [
@@ -427,6 +439,8 @@ router.post(
   }
 );
 
+
+// ROUTE : 6 "check-auth" checking the authentication using auth token(jwt)
 router.get("/check-auth", async (req, res) => {
   const token = req.cookies.authToken;
   if (!token) {
@@ -448,6 +462,8 @@ router.get("/check-auth", async (req, res) => {
   }
 });
 
+
+// ROUTE : 7 "logout" cleare the cookies after logout
 router.post("/logout", (req, res) => {
   res.clearCookie("authToken");
   res.json({ success: true, message: "Logged out successfully" });
