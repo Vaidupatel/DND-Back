@@ -18,7 +18,7 @@ connectToDb().then(() => {
 });
 
 app.use(express.json());
-app.use(cors(corsOptions));
+app.use(cors());
 app.use(cookieParser());
 
 const authRoutes = require("./routes/auth.js");
