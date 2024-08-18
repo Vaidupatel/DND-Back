@@ -4,6 +4,7 @@
   "description": "This is the server to handle the nexgenwebcon",
   "main": "server.js",
   "scripts": {
+    "dev":"nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "ghelani vaidik",
